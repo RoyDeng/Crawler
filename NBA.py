@@ -4,12 +4,18 @@ import sys
 import json
 import requests
 import time
+import threading
 from datetime import datetime
 
 requests.packages.urllib3.disable_warnings()
 
 rs = requests.session()
 
+player_list = []
+
+for word in list(string.ascii_uppercase):
+    page_url = 'http://tw.global.nba.com/stats2/league/playerlist.json?lastName=' + word + '&locale=zh_TW'
+    player_list.append(page_url)
 
 def crawler(url_list):
     count, p_id = 0, 0
@@ -34,7 +40,6 @@ def crawler(url_list):
         # 避免被認為攻擊網站
         time.sleep(0.1)
 
-# JSON 格式不一致，如 Artis Jamel
 def parseGos(link, p_id):
     res = rs.get(link, verify=False)
     name = json.loads(res.text)['payload']['player']['playerProfile']['displayName']
@@ -91,14 +96,18 @@ def store(data):
 
 if __name__ == "__main__":
     start_time = time.time()
+    threads = []
+    threadNum = 4
     print('開始爬NBA球員生涯數據')
     fileName = 'NBA.json'
-    player_list = []
-    for word in list(string.ascii_uppercase):
-        page_url = 'http://tw.global.nba.com/stats2/league/playerlist.json?lastName=' + word + '&locale=zh_TW'
-        player_list.append(page_url)
 
-    crawler(player_list)
+    for i in range(0, threadNum):
+        t = threading.Thread(target=crawler, args=(player_list,))
+        threads.append(t)
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
     # 移除最後一個  "," 號
     with open(fileName, 'r') as f:

@@ -6,6 +6,11 @@ import requests
 import time
 from datetime import datetime
 
+requests.packages.urllib3.disable_warnings()
+
+rs = requests.session()
+
+
 def crawler(url_list):
     count, p_id = 0, 0
     total = len(url_list)
@@ -14,8 +19,8 @@ def crawler(url_list):
         url = url_list.pop(0)
         res = rs.get(url, verify=False)
         players = json.loads(res.text)['payload']['players']
+        count += 1
         for player in players:
-            count += 1
             # 先得到每位球員的 url
             link = player['playerProfile']['code']
             if (link):
@@ -34,7 +39,11 @@ def parseGos(link, p_id):
     res = rs.get(link, verify=False)
     name = json.loads(res.text)['payload']['player']['playerProfile']['displayName']
     teams = json.loads(res.text)['payload']['player']['stats']['regularSeasonStat']['playerTeams']
-    recent_team = teams[-1]['profile']['displayAbbr']
+    # recent_team 球員最近的隊伍
+    try:
+        recent_team = teams[0]['profile']['code']
+    except:
+        print(teams[-1]['profile'])
 
     # points 得分
     points = []
@@ -48,16 +57,19 @@ def parseGos(link, p_id):
     # fgpcts 投籃命中率
     fgpcts = []
 
-    for team in teams[::-1]:
-        points.append(team['statAverage']['pointsPg'])
-        rebs.append(team['statAverage']['rebsPg'])
-        assists.append(team['statAverage']['assistsPg'])
-        fgpcts.append(team['statAverage']['fgpct'])
-#         current_team = team['profile']['abbr']
-#         if current_team == recent_team:
-#             
-#         else:
-#             break
+    for index, team in enumerate(teams):
+        if team['profile'] is not None:
+            current_team = team['profile']['code']
+        else:
+            current_team = teams[index - 1]['profile']['code']
+
+        if current_team == recent_team:
+            points.append(team['statAverage']['pointsPg'])
+            rebs.append(team['statAverage']['rebsPg'])
+            assists.append(team['statAverage']['assistsPg'])
+            fgpcts.append(team['statAverage']['fgpct'])
+        else:
+            break
     
     data = {
         "球員": name,

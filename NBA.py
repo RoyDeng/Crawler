@@ -4,41 +4,41 @@ import sys
 import json
 import requests
 import time
-import threading
+import threading, queue
 from datetime import datetime
 
 requests.packages.urllib3.disable_warnings()
 
 rs = requests.session()
 
-player_list = []
+player_list = queue.Queue()
 
 for word in list(string.ascii_uppercase):
     page_url = 'http://tw.global.nba.com/stats2/league/playerlist.json?lastName=' + word + '&locale=zh_TW'
-    player_list.append(page_url)
+    player_list.put(page_url)
 
 def crawler(url_list):
-    count, p_id = 0, 0
-    total = len(url_list)
+    p_id = 0
     # 開始爬網頁
-    while url_list:
-        url = url_list.pop(0)
-        res = rs.get(url, verify=False)
-        players = json.loads(res.text)['payload']['players']
-        count += 1
-        for player in players:
-            # 先得到每位球員的 url
-            link = player['playerProfile']['code']
-            if (link):
-                URL = 'http://tw.global.nba.com/stats2/player/stats.json?ds=career&locale=zh_TW&playerCode=' + link
-                p_id = p_id + 1
-                # 避免被認為攻擊網站
-                time.sleep(0.1)
-                # 開始爬數據內容
-                parseGos(URL, p_id)
-        print("進度：" + str(100 * count / total) + "%")
-        # 避免被認為攻擊網站
-        time.sleep(0.1)
+    while True:
+        if url_list.empty():
+            break
+        else:
+            url = url_list.get_nowait()
+            res = rs.get(url, verify=False)
+            players = json.loads(res.text)['payload']['players']
+            for player in players:
+                # 先得到每位球員的 url
+                link = player['playerProfile']['code']
+                if (link):
+                    URL = 'http://tw.global.nba.com/stats2/player/stats.json?ds=career&locale=zh_TW&playerCode=' + link
+                    p_id = p_id + 1
+                    # 避免被認為攻擊網站
+                    time.sleep(0.1)
+                    # 開始爬數據內容
+                    parseGos(URL, p_id)
+            # 避免被認為攻擊網站
+            time.sleep(0.1)
 
 def parseGos(link, p_id):
     res = rs.get(link, verify=False)
@@ -101,6 +101,7 @@ if __name__ == "__main__":
     print('開始爬NBA球員生涯數據')
     fileName = 'NBA.json'
 
+    store('[\n')
     for i in range(0, threadNum):
         t = threading.Thread(target=crawler, args=(player_list,))
         threads.append(t)
